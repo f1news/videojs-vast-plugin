@@ -69,29 +69,28 @@
         return sources;
       },
 
-      getContent: function () {
+      getPreroll: function () {
 
         // query vast url given in settings
-        vast.client.get(settings.url, function(response) {
+        vast.client.get(settings.preroll, function(response) {
           if (response) {
             // we got a response, deal with it
-            for (var adIdx = 0; adIdx < response.ads.length; adIdx++) {
-              var ad = response.ads[adIdx];
+            for (var adidx = 0; adidx < response.ads.length; adidx++) {
+              var ad = response.ads[adidx];
               player.vast.companion = undefined;
               for (var creaIdx = 0; creaIdx < ad.creatives.length; creaIdx++) {
-                var creative = ad.creatives[creaIdx], foundCreative = false, foundCompanion = false;
-                if (creative.type === "linear" && !foundCreative) {
-
+                  var creative = ad.creatives[creaIdx], foundCreative = false, foundCompanion = false;
+                  if (creative.type === "linear" && !foundCreative) {
+              
                   if (creative.mediaFiles.length) {
-
-                    player.vast.sources = player.vast.createSourceObjects(creative.mediaFiles);
+                      player.vast.sources = player.vast.createSourceObjects(creative.mediaFiles);
 
                     if (!player.vast.sources.length) {
                       player.trigger('adscanceled');
                       return;
                     }
-
-                    player.vastTracker = new vast.tracker(ad, creative);
+                    player.preroll = {};
+                    player.preroll.vasttracker = new vast.tracker(ad, creative);
 
                     foundCreative = true;
                   }
@@ -105,45 +104,46 @@
                 }
               }
 
-              if (player.vastTracker) {
+              if (player.preroll.vasttracker) {
                 // vast tracker and content is ready to go, trigger event
                 player.trigger('vast-ready');
                 break;
               } else {
-                // Inform ad server we can't find suitable media file for this ad
+                // inform ad server we can't find suitable media file for this ad
                 vast.util.track(ad.errorURLTemplates, {ERRORCODE: 403});
               }
             }
           }
 
-          if (!player.vastTracker) {
-            // No pre-roll, start video
+          if (!player.preroll.vasttracker) {
+            // no pre-roll, start video
             player.trigger('adscanceled');
           }
         });
       },
 
+
       setupEvents: function() {
 
         var errorOccurred = false,
             canplayFn = function() {
-              player.vastTracker.load();
+              player.preroll.vasttracker.load();
             },
             timeupdateFn = function() {
-              if (isNaN(player.vastTracker.assetDuration)) {
-                player.vastTracker.assetDuration = player.duration();
+              if (isNaN(player.preroll.vasttracker.assetDuration)) {
+                player.preroll.vasttracker.assetDuration = player.duration();
               }
-              player.vastTracker.setProgress(player.currentTime());
+              player.preroll.vasttracker.setProgress(player.currentTime());
             },
             pauseFn = function() {
-              player.vastTracker.setPaused(true);
+              player.preroll.vasttracker.setPaused(true);
               player.one('play', function(){
-                player.vastTracker.setPaused(false);
+                player.preroll.vasttracker.setPaused(false);
               });
             },
             errorFn = function() {
               // Inform ad server we couldn't play the media file for this ad
-              vast.util.track(player.vastTracker.ad.errorURLTemplates, {ERRORCODE: 405});
+              vast.util.track(player.preroll.vasttracker.ad.errorURLTemplates, {ERRORCODE: 405});
               errorOccurred = true;
               player.trigger('ended');
             };
@@ -159,7 +159,7 @@
           player.off('pause', pauseFn);
           player.off('error', errorFn);
           if (!errorOccurred) {
-            player.vastTracker.complete();
+            player.preroll.vasttracker.complete();
           }
         });
       },
@@ -175,12 +175,12 @@
         player.src(player.vast.sources);
 
         var clickthrough;
-        if (player.vastTracker.clickThroughURLTemplate) {
+        if (player.preroll.vasttracker.clickThroughURLTemplate) {
           clickthrough = vast.util.resolveURLTemplates(
-            [player.vastTracker.clickThroughURLTemplate],
+            [player.preroll.vasttracker.clickThroughURLTemplate],
             {
               CACHEBUSTER: Math.round(Math.random() * 1.0e+10),
-              CONTENTPLAYHEAD: player.vastTracker.progressFormated()
+              CONTENTPLAYHEAD: player.preroll.vasttracker.progressFormated()
             }
           )[0];
         }
@@ -193,9 +193,9 @@
             player.play();
             return false;
           }
-          var clicktrackers = player.vastTracker.clickTrackingURLTemplate;
+          var clicktrackers = player.preroll.vasttracker.clickTrackingURLTemplate;
           if (clicktrackers) {
-            player.vastTracker.trackURLs([clicktrackers]);
+            player.preroll.vasttracker.trackURLs([clicktrackers]);
           }
           player.trigger("adclick");
         };
@@ -214,7 +214,7 @@
 
         skipButton.onclick = function(e) {
           if((' ' + player.vast.skipButton.className + ' ').indexOf(' enabled ') >= 0) {
-            player.vastTracker.skip();
+            player.preroll.vasttracker.skip();
             player.vast.tearDown();
           }
           if(window.Event.prototype.stopPropagation !== undefined) {
@@ -299,12 +299,12 @@
 
     player.on('contentupdate', function(){
       // videojs-ads triggers this when src changes
-      player.vast.getContent(settings.url);
+      player.vast.getPreroll();
     });
 
     player.on('readyforpreroll', function() {
       // if we don't have a vast url, just bail out
-      if (!settings.url) {
+      if (!settings.preroll) {
         player.trigger('adscanceled');
         return null;
       }
@@ -314,7 +314,7 @@
 
     // make an ads request immediately so we're ready when the viewer hits "play"
     if (player.currentSrc()) {
-      player.vast.getContent(settings.url);
+      player.vast.getPreroll();
     }
 
     // return player to allow this plugin to be chained
