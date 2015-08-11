@@ -71,6 +71,7 @@
 
       getPreroll: function () {
 
+        player.preroll = {};
         // query vast url given in settings
         vast.client.get(settings.preroll, function(response) {
           if (response) {
@@ -89,7 +90,6 @@
                       player.trigger('adscanceled');
                       return;
                     }
-                    player.preroll = {};
                     player.preroll.vasttracker = new vast.tracker(ad, creative);
 
                     foundCreative = true;
